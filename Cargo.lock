@@ -3,5 +3,12 @@
 version = 4
 
 [[package]]
-name = "topodex"
+name = "cli"
+version = "0.1.0"
+dependencies = [
+ "extract_osm",
+]
+
+[[package]]
+name = "extract_osm"
 version = "0.1.0"
