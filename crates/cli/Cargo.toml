@@ -4,4 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-extract_osm ={ path = "../extract_osm"}
+extract_osm = { path = "../extract_osm" }
+geohash = { workspace = true }
+geo ={ workspace = true}
+clap = { version = "4.5.23", features = ["derive"] }

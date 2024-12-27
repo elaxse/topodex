@@ -4,3 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+types = { path = "../types"}
+osmpbf = "0.3.4"
+rayon = "1.10.0"
+geojson = { version = "0.24.1", features = ["geo-types"] }
