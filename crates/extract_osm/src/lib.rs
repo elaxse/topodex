@@ -1,13 +1,141 @@
 mod element_collection_reader;
 
-use std::{collections::{HashMap, HashSet}, fs, time::Instant};
-use osmpbf::{Element, Relation};
-use types::{RelationWithLocations, RelationWithMembers, Way};
 use element_collection_reader::ElementCollectReader;
+use geo::{coord, Coord};
 use geojson::{feature::Id, Feature, GeoJson, Geometry, Value};
-
+use osmpbf::{Element, Relation};
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+    time::Instant,
+};
+use types::{RelationWithLocations, RelationWithMembers, Way};
 
 pub fn extract_osm(path: &str) {
+    let (relations, ways, nodes) = read_osm_elements(path);
+    let start = Instant::now();
+    let mut countries = Vec::<RelationWithLocations>::new();
+
+    for relation in relations {
+        let mut relation_ways: Vec<Way> = vec![];
+        let mut relation_data_complete = true;
+
+        for way in relation.members.iter() {
+            if let Some(node_ids) = ways.get(&way) {
+                relation_ways.push(Way {
+                    id: way.clone(),
+                    node_ids: node_ids.to_vec(),
+                })
+            }
+        }
+
+        let mut parts: Vec<Vec<Coord>> = vec![];
+
+        while !relation_ways.is_empty() {
+            let start_node_id: &i64 = &relation_ways
+                .get(0)
+                .unwrap()
+                .node_ids
+                .get(0)
+                .unwrap()
+                .clone();
+            let mut search_node_id = start_node_id.clone();
+
+            let mut part: Vec<Coord<f64>> = vec![];
+            let first_node_option = nodes.get(start_node_id);
+
+            if first_node_option.is_none() {
+                panic!("Node {start_node_id} not found");
+            }
+
+            let first_node = first_node_option.unwrap();
+
+            part.push(coord! {x: first_node.0, y: first_node.1});
+
+            loop {
+                if let Some(way) = find_match(&search_node_id, &mut relation_ways) {
+                    let mut locations: Vec<Coord> = way
+                        .node_ids
+                        .iter()
+                        .skip(1)
+                        .map(|node_id| nodes.get(node_id))
+                        .flatten()
+                        .map(|(lon, lat)| coord! {x: lon.clone(), y: lat.clone()})
+                        .collect();
+
+                    part.append(&mut locations);
+
+                    search_node_id = way.node_ids.last().unwrap().clone();
+
+                    if &search_node_id == start_node_id {
+                        break;
+                    }
+                } else {
+                    // in case not whole shape is present make connection to starting point to be valid polygon
+                    relation_data_complete = false;
+                    break;
+                }
+            }
+
+            if !relation_data_complete {
+                break;
+            }
+            parts.push(part);
+        }
+
+        if !relation_data_complete {
+            continue;
+        }
+
+        countries.push(RelationWithLocations {
+            id: relation.id,
+            locations: parts,
+        })
+    }
+
+    println!(
+        "Countries combination: {} seconds",
+        start.elapsed().as_secs()
+    );
+
+    let start = Instant::now();
+
+    let mut geojson_output = Vec::<String>::new();
+
+    for country in countries {
+        let geometry = Geometry::new(Value::MultiPolygon(
+            country
+                .locations
+                .into_iter()
+                .map(|location| vec![location.into_iter().map(|l| vec![l.x, l.y]).collect()])
+                .collect(),
+        ));
+
+        let geojson = GeoJson::Feature(Feature {
+            bbox: None,
+            geometry: Some(geometry),
+            id: Some(Id::String(country.id.to_string())),
+            properties: None,
+            foreign_members: None,
+        });
+
+        let geojson_string = geojson.to_string();
+        geojson_output.push(geojson_string)
+    }
+    fs::write("assets/countries.ndgeojson", geojson_output.join("\n")).unwrap();
+
+    println!("Geosjon convert: {} seconds", start.elapsed().as_secs());
+
+    ()
+}
+
+fn read_osm_elements(
+    path: &str,
+) -> (
+    Vec<RelationWithMembers>,
+    HashMap<i64, Vec<i64>>,
+    HashMap<i64, (f64, f64)>,
+) {
     let required_tags: Vec<(&str, Option<&str>)> = vec![
         ("type", Some("boundary")),
         ("admin_level", Some("4")),
@@ -43,116 +171,7 @@ pub fn extract_osm(path: &str) {
     let nodes = read_nodes(&path, &nodes_set).unwrap();
     println!("Nodes extract: {} seconds", start.elapsed().as_secs());
 
-    let start = Instant::now();
-    let mut countries = Vec::<RelationWithLocations>::new();
-
-    for relation in relations {
-        let mut relation_ways: Vec<Way> = vec![];
-
-        for way in relation.members.iter() {
-            if let Some(node_ids) = ways.get(&way) {
-                relation_ways.push(Way {
-                    id: way.clone(),
-                    node_ids: node_ids.to_vec(),
-                })
-            }
-        }
-
-        let mut parts: Vec<Vec<Vec<f64>>> = vec![];
-
-        while !relation_ways.is_empty() {
-            let start_node_id: &i64 = &relation_ways
-                .get(0)
-                .unwrap()
-                .node_ids
-                .get(0)
-                .unwrap()
-                .clone();
-            let mut search_node_id = start_node_id.clone();
-
-            let mut part: Vec<Vec<f64>> = vec![];
-            let first_node_option = nodes.get(start_node_id);
-
-            if first_node_option.is_none() {
-                println!("Node {start_node_id} not found");
-                break;
-            }
-
-            let first_node = first_node_option.unwrap();
-
-            part.push(vec![first_node.0, first_node.1]);
-
-            loop {
-                if let Some(way) = find_match(&search_node_id, &mut relation_ways) {
-                    let mut locations: Vec<Vec<f64>> = way
-                        .node_ids
-                        .iter()
-                        .skip(1)
-                        .map(|node_id| nodes.get(node_id))
-                        .flatten()
-                        .map(|(lon, lat)| vec![lon.clone(), lat.clone()])
-                        .collect();
-
-                    part.append(&mut locations);
-
-                    search_node_id = way.node_ids.last().unwrap().clone();
-
-                    if &search_node_id == start_node_id {
-                        break;
-                    }
-                } else {
-                    // in case not whole shape is present make connection to starting point to be valid polygon
-                    part.push(vec![first_node.0, first_node.1]);
-                    break;
-                }
-            }
-
-            parts.push(part);
-        }
-
-        // println!("Country {} has {} polygons", relation.id, parts.len());
-        countries.push(RelationWithLocations {
-            id: relation.id,
-            locations: parts,
-        })
-    }
-
-    println!(
-        "Countries combination: {} seconds",
-        start.elapsed().as_secs()
-    );
-
-    // println!("Found {:?} countries", countries.len());
-
-    let start = Instant::now();
-
-    let mut geojson_output = Vec::<String>::new();
-
-    for country in countries {
-        let geometry = Geometry::new(Value::MultiPolygon(
-            country
-                .locations
-                .into_iter()
-                .map(|location| vec![location])
-                .collect(),
-        ));
-
-        let geojson = GeoJson::Feature(Feature {
-            bbox: None,
-            geometry: Some(geometry),
-            id: Some(Id::String(country.id.to_string())),
-            properties: None,
-            foreign_members: None,
-        });
-
-        let geojson_string = geojson.to_string();
-        geojson_output.push(geojson_string)
-    }
-    fs::write("assets/countries.ndgeojson", geojson_output.join("\n")).unwrap();
-
-    println!("Geosjon convert: {} seconds", start.elapsed().as_secs());
-
-    ()
+    (relations, ways, nodes)
 }
 
 fn find_match(node_id: &i64, ways: &mut Vec<Way>) -> Option<Way> {

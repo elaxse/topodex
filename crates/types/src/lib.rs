@@ -1,3 +1,5 @@
+use geo::Coord;
+
 #[derive(Debug, Clone)]
 pub struct RelationWithMembers {
     pub id: i64,
@@ -7,7 +9,7 @@ pub struct RelationWithMembers {
 #[derive(Debug, Clone)]
 pub struct RelationWithLocations {
     pub id: i64,
-    pub locations: Vec<Vec<Vec<f64>>>,
+    pub locations: Vec<Vec<Coord>>
 }
 
 #[derive(Debug, Clone)]
