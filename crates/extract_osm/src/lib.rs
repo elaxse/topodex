@@ -1,11 +1,124 @@
 mod element_collection_reader;
 mod read_osm_data;
 
-use geo::{coord, Coord};
+use geo::{coord, BooleanOps, Contains, Coord, Intersects, MultiPolygon, Polygon};
+use geohash::decode_bbox;
 use geojson::{feature::Id, Feature, Geometry, Value};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use read_osm_data::read_osm_elements;
+use std::error::Error;
 use std::time::Instant;
 use types::{RelationWithLocations, Way};
+
+#[derive(Debug)]
+pub enum GeohashValue {
+    GeohashCountry(u16),
+    PartialGeohash(Vec<MultiPolygon>),
+}
+
+#[derive(Debug, Clone)]
+struct ShouldCheck {
+    hash: String,
+    area: MultiPolygon,
+}
+
+#[derive(Debug)]
+pub struct GeohashIndex {
+    pub hash: String,
+    pub value: Id,
+}
+
+pub fn extract_topologies(
+    features: Vec<Feature>,
+    max_geohash_level: u8,
+) -> Result<Vec<GeohashIndex>, Box<dyn Error>> {
+    let geohashes: Vec<GeohashIndex> = features
+        .par_iter()
+        .map(|feature| {
+            if let Some(geometry) = feature.clone().geometry {
+                let feature_shape_option = match &geometry.value {
+                    Value::MultiPolygon(_) => {
+                        let geo_polygon: MultiPolygon<f64> = MultiPolygon::try_from(geometry)?;
+                        Some(geo_polygon)
+                    }
+                    Value::Polygon(_) => {
+                        let geo: Polygon<f64> = Polygon::try_from(geometry)?;
+                        Some(MultiPolygon(vec![geo]))
+                    }
+                    _ => {
+                        println!("Unsupported geometry");
+                        None
+                    }
+                };
+                if let (Some(feature_shape), Some(feature_id)) =
+                    (feature_shape_option, feature.id.clone())
+                {
+                    return process_geometry(feature_shape, feature_id, max_geohash_level);
+                }
+            }
+            Ok(Vec::new())
+        })
+        .filter_map(Result::ok)
+        .flatten()
+        .collect();
+
+    Ok(geohashes)
+}
+
+fn process_geometry(
+    geo_polygon: MultiPolygon,
+    country_id: Id,
+    max_geohash_level: u8,
+) -> Result<Vec<GeohashIndex>, Box<dyn Error + Send + Sync>> {
+    let mut geohashes = Vec::<GeohashIndex>::new();
+    let geohash_possibilities: Vec<String> = "0123456789bcdefghjkmnpqrstuvwxyz"
+        .chars()
+        .map(|c| c.to_string())
+        .collect();
+
+    let mut geohashes_to_check: Vec<ShouldCheck> = geohash_possibilities
+        .iter()
+        .map(|c| ShouldCheck {
+            hash: c.to_string(),
+            area: geo_polygon.clone(),
+        })
+        .collect();
+
+    let start = std::time::Instant::now();
+    for _ in 1..=max_geohash_level {
+        let mut next_geohashes_check = Vec::<ShouldCheck>::new();
+
+        for check in geohashes_to_check {
+            let rect = decode_bbox(&check.hash)?;
+            let mp = MultiPolygon(vec![rect.to_polygon()]);
+            if check.area.contains(&rect) {
+                geohashes.push(GeohashIndex {
+                    hash: check.hash.clone(),
+                    value: country_id.clone(),
+                })
+            } else if check.area.intersects(&rect) {
+                let intersecting_polygon = check.area.intersection(&mp);
+                let options_to_check: Vec<ShouldCheck> = geohash_possibilities
+                    .iter()
+                    .map(|h| ShouldCheck {
+                        hash: format!("{}{}", check.hash, h),
+                        area: intersecting_polygon.clone(),
+                    })
+                    .collect();
+                next_geohashes_check.extend(options_to_check);
+            }
+        }
+
+        geohashes_to_check = next_geohashes_check;
+    }
+
+    println!(
+        "processed relation {:?} in {:.2?}",
+        country_id,
+        start.elapsed()
+    );
+    Ok(geohashes)
+}
 
 pub fn extract_osm(path: &str) -> Vec<Feature> {
     let (relations, ways, nodes) = read_osm_elements(path);
