@@ -1,5 +1,5 @@
 use clap::Parser;
-use extract_osm::{extract_osm, extract_topologies};
+use extract_osm::{extract_osm, extract_topologies, save_geohash_index};
 use geo::Polygon;
 use geojson::Feature;
 
@@ -17,6 +17,9 @@ struct Args {
 
     #[arg(short, long)]
     processed_features_output_path: Option<String>,
+
+    #[arg(short, long)]
+    geohash_db_output_path: Option<String>,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -65,6 +68,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let geojson_str = feature.to_string();
         std::fs::write(output_path, geojson_str)?;
+    }
+
+    if let Some(output_path) = args.geohash_db_output_path {
+        save_geohash_index(geohash_indexes, &output_path)?;
     }
 
     Ok(())

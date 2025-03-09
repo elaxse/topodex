@@ -6,6 +6,7 @@ use geohash::decode_bbox;
 use geojson::{feature::Id, Feature, Geometry, Value};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use read_osm_data::read_osm_elements;
+use rusty_leveldb::{Options, DB};
 use std::error::Error;
 use std::time::Instant;
 use types::{RelationWithLocations, Way};
@@ -25,7 +26,22 @@ struct ShouldCheck {
 #[derive(Debug)]
 pub struct GeohashIndex {
     pub hash: String,
-    pub value: Id,
+    pub value: String,
+}
+
+pub fn save_geohash_index(
+    geohashes: Vec<GeohashIndex>,
+    path: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let opt = Options::default();
+    let mut db = DB::open(path, opt)?;
+    for geohash in geohashes {
+        db.put(&geohash.hash.as_bytes(), &geohash.value.as_bytes())?;
+    }
+
+    db.flush()?;
+
+    Ok(())
 }
 
 pub fn extract_topologies(
@@ -53,7 +69,11 @@ pub fn extract_topologies(
                 if let (Some(feature_shape), Some(feature_id)) =
                     (feature_shape_option, feature.id.clone())
                 {
-                    return process_geometry(feature_shape, feature_id, max_geohash_level);
+                    let fid = match feature_id {
+                        Id::String(s) => s,
+                        Id::Number(n) => n.to_string(),
+                    };
+                    return process_geometry(feature_shape, fid, max_geohash_level);
                 }
             }
             Ok(Vec::new())
@@ -67,7 +87,7 @@ pub fn extract_topologies(
 
 fn process_geometry(
     geo_polygon: MultiPolygon,
-    country_id: Id,
+    country_id: String,
     max_geohash_level: u8,
 ) -> Result<Vec<GeohashIndex>, Box<dyn Error + Send + Sync>> {
     let mut geohashes = Vec::<GeohashIndex>::new();
