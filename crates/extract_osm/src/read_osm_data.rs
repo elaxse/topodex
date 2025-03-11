@@ -17,7 +17,7 @@ pub fn read_osm_elements(
 ) {
     let required_tags: Vec<(&str, Option<&str>)> = vec![
         ("type", Some("boundary")),
-        ("admin_level", Some("4")),
+        ("admin_level", Some("2")),
         // ("boundary", Some("administrative")),
         // ("ISO3166-2", None),
     ];

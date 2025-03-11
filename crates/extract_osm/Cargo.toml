@@ -11,3 +11,4 @@ geojson = { version = "0.24.1", features = ["geo-types"] }
 geo = { workspace = true}
 geohash.workspace = true
 rusty-leveldb = "3.0.2"
+rocksdb = { version = "0.23.0", features = ["multi-threaded-cf"] }

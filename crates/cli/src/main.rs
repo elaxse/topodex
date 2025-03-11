@@ -1,7 +1,9 @@
+use api::run_api;
 use clap::Parser;
 use extract_osm::{extract_osm, extract_topologies, save_geohash_index};
 use geo::Polygon;
 use geojson::Feature;
+use ntex;
 
 #[derive(Parser)]
 #[command(version, about, long_about)]
@@ -19,10 +21,11 @@ struct Args {
     processed_features_output_path: Option<String>,
 
     #[arg(short, long)]
-    geohash_db_output_path: Option<String>,
+    geohash_db_output_path: String,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[ntex::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     println!("Read file {}", args.input_pbf_file);
@@ -70,9 +73,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::fs::write(output_path, geojson_str)?;
     }
 
-    if let Some(output_path) = args.geohash_db_output_path {
-        save_geohash_index(geohash_indexes, &output_path)?;
-    }
+    save_geohash_index(geohash_indexes, &args.geohash_db_output_path)?;
+    run_api(&args.geohash_db_output_path).await?;
 
     Ok(())
 }

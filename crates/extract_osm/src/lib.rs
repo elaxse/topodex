@@ -6,7 +6,7 @@ use geohash::decode_bbox;
 use geojson::{feature::Id, Feature, Geometry, Value};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use read_osm_data::read_osm_elements;
-use rusty_leveldb::{Options, DB};
+use rocksdb::DB;
 use std::error::Error;
 use std::time::Instant;
 use types::{RelationWithLocations, Way};
@@ -33,8 +33,7 @@ pub fn save_geohash_index(
     geohashes: Vec<GeohashIndex>,
     path: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let opt = Options::default();
-    let mut db = DB::open(path, opt)?;
+    let db = DB::open_default(path).unwrap();
     for geohash in geohashes {
         db.put(&geohash.hash.as_bytes(), &geohash.value.as_bytes())?;
     }
