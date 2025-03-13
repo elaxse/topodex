@@ -45,7 +45,7 @@ pub fn save_geohash_index(
 
 pub fn extract_topologies(
     features: Vec<Feature>,
-    max_geohash_level: u8,
+    max_geohash_level: usize,
 ) -> Result<Vec<GeohashIndex>, Box<dyn Error>> {
     let geohashes: Vec<GeohashIndex> = features
         .par_iter()
@@ -87,7 +87,7 @@ pub fn extract_topologies(
 fn process_geometry(
     geo_polygon: MultiPolygon,
     country_id: String,
-    max_geohash_level: u8,
+    max_geohash_level: usize,
 ) -> Result<Vec<GeohashIndex>, Box<dyn Error + Send + Sync>> {
     let mut geohashes = Vec::<GeohashIndex>::new();
     let geohash_possibilities: Vec<String> = "0123456789bcdefghjkmnpqrstuvwxyz"

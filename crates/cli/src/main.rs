@@ -1,80 +1,125 @@
 use api::run_api;
-use clap::Parser;
-use extract_osm::{extract_osm, extract_topologies, save_geohash_index};
+use clap::{Parser, Subcommand};
+use extract_osm::{extract_osm, extract_topologies, save_geohash_index, GeohashIndex};
 use geo::Polygon;
 use geojson::Feature;
 use ntex;
+use std::{fs::read_to_string, str::FromStr};
 
 #[derive(Parser)]
 #[command(version, about, long_about)]
 struct Args {
-    #[arg(short, long)]
-    input_pbf_file: String,
+    #[command(subcommand)]
+    command: Commands,
+}
 
-    #[arg(short, long, default_value_t = 5)]
-    max_geohash_level: u8,
+#[derive(Subcommand)]
+enum Commands {
+    Serve {
+        #[arg(short, long)]
+        geohash_db: String,
 
-    #[arg(short, long)]
-    raw_features_output_path: Option<String>,
+        #[arg(short, long, default_value_t = 5)]
+        max_geohash_level: usize,
+    },
+    Extract {
+        #[arg(short, long)]
+        osm_pbf_file: String,
 
-    #[arg(short, long)]
-    processed_features_output_path: Option<String>,
+        #[arg(short, long)]
+        features_output_path: String,
+    },
+    Process {
+        #[arg(short, long)]
+        features_output_path: String,
 
-    #[arg(short, long)]
-    geohash_db_output_path: String,
+        #[arg(short, long, default_value_t = 5)]
+        max_geohash_level: usize,
+
+        #[arg(short, long)]
+        processed_features_output_path: Option<String>,
+
+        #[arg(short, long)]
+        geohash_db_output_path: String,
+    },
 }
 
 #[ntex::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = Args::parse();
+    let cli = Args::parse();
 
-    println!("Read file {}", args.input_pbf_file);
-    let geometries = extract_osm(&args.input_pbf_file);
-    println!("Received {} geometries", geometries.len());
+    match cli.command {
+        Commands::Extract {
+            osm_pbf_file,
+            features_output_path,
+        } => {
+            println!("Read file {}", osm_pbf_file);
+            let geometries = extract_osm(&osm_pbf_file);
+            println!("Received {} geometries", geometries.len());
 
-    if let Some(output_path) = args.raw_features_output_path {
-        let geojson_str = geometries
-            .iter()
-            .map(|feature| feature.to_string())
-            .collect::<Vec<String>>()
-            .join("\n");
+            let geojson_str = geometries
+                .iter()
+                .map(|feature| feature.to_string())
+                .collect::<Vec<String>>()
+                .join("\n");
 
-        std::fs::write(output_path, geojson_str)?;
+            std::fs::write(features_output_path, geojson_str)?;
+        }
+        Commands::Process {
+            features_output_path,
+            max_geohash_level,
+            processed_features_output_path,
+            geohash_db_output_path,
+        } => {
+            let features_str = read_to_string(features_output_path)?;
+            let geometries: Vec<Feature> = features_str
+                .split("\n")
+                .into_iter()
+                .map(|feature_str| Feature::from_str(feature_str).unwrap())
+                .collect();
+            let geohash_indexes = extract_topologies(geometries, max_geohash_level)?;
+            println!("Geohash indexes count: {}", geohash_indexes.len());
+
+            if let Some(output_path) = processed_features_output_path {
+                let geojson_str = geohash_to_geojson(&geohash_indexes);
+                std::fs::write(output_path, geojson_str)?;
+            }
+
+            save_geohash_index(geohash_indexes, &geohash_db_output_path)?;
+        }
+        Commands::Serve {
+            geohash_db,
+            max_geohash_level,
+        } => {
+            run_api(&geohash_db, max_geohash_level).await?;
+        }
     }
-
-    let geohash_indexes = extract_topologies(geometries, args.max_geohash_level)?;
-    println!("Geohash indexes count: {}", geohash_indexes.len());
-
-    if let Some(output_path) = args.processed_features_output_path {
-        let bboxes = geohash_indexes
-            .iter()
-            .map(|geohash_index| geohash::decode_bbox(&geohash_index.hash))
-            .filter_map(Result::ok)
-            .map(|bbox| bbox.to_polygon())
-            .collect::<Vec<Polygon>>();
-
-        let multi_polygon = geojson::Value::from(&geo::MultiPolygon(bboxes));
-
-        let geometry = geojson::Geometry {
-            value: multi_polygon,
-            bbox: None,
-            foreign_members: None,
-        };
-
-        let feature = Feature {
-            id: None,
-            properties: None,
-            geometry: Some(geometry),
-            foreign_members: None,
-            bbox: None,
-        };
-
-        let geojson_str = feature.to_string();
-        std::fs::write(output_path, geojson_str)?;
-    }
-
-    save_geohash_index(geohash_indexes, &args.geohash_db_output_path)?;
-    run_api(&args.geohash_db_output_path).await?;
-
     Ok(())
+}
+
+fn geohash_to_geojson(geohash_indexes: &Vec<GeohashIndex>) -> String {
+    let bboxes = geohash_indexes
+        .iter()
+        .map(|geohash_index| geohash::decode_bbox(&geohash_index.hash))
+        .filter_map(Result::ok)
+        .map(|bbox| bbox.to_polygon())
+        .collect::<Vec<Polygon>>();
+
+    let multi_polygon = geojson::Value::from(&geo::MultiPolygon(bboxes));
+
+    let geometry = geojson::Geometry {
+        value: multi_polygon,
+        bbox: None,
+        foreign_members: None,
+    };
+
+    let feature = Feature {
+        id: None,
+        properties: None,
+        geometry: Some(geometry),
+        foreign_members: None,
+        bbox: None,
+    };
+
+    feature.to_string()
 }
