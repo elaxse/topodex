@@ -9,7 +9,7 @@ pub struct RelationWithMembers {
 #[derive(Debug, Clone)]
 pub struct RelationWithLocations {
     pub id: i64,
-    pub locations: Vec<Vec<Coord>>
+    pub locations: Vec<Vec<Coord>>,
 }
 
 #[derive(Debug, Clone)]

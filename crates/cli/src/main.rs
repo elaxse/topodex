@@ -21,6 +21,9 @@ enum Commands {
 
         #[arg(short, long, default_value_t = 5)]
         max_geohash_level: usize,
+
+        #[arg(short, long, default_value_t = 8090)]
+        port: u16,
     },
     Extract {
         #[arg(short, long)]
@@ -90,8 +93,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Serve {
             geohash_db,
             max_geohash_level,
+            port,
         } => {
-            run_api(&geohash_db, max_geohash_level).await?;
+            run_api(&geohash_db, max_geohash_level, port).await?;
         }
     }
     Ok(())
