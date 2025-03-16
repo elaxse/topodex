@@ -24,7 +24,7 @@ pub fn extract(path: &str) -> Vec<Feature> {
     let countries = build_relations(relations, ways, nodes).unwrap();
 
     countries
-        .iter()
+        .into_iter()
         .map(|country| {
             let geometry = Geometry::new(Value::Polygon(vec![country
                 .locations
@@ -37,7 +37,7 @@ pub fn extract(path: &str) -> Vec<Feature> {
                 bbox: None,
                 geometry: Some(geometry),
                 id: Some(Id::String(country.id.to_string())),
-                properties: None,
+                properties: Some(country.tags),
                 foreign_members: None,
             }
         })
@@ -126,6 +126,7 @@ fn build_relations(
         countries.push(RelationWithLocations {
             id: relation.id,
             locations: parts,
+            tags: relation.tags,
         })
     }
     Ok(countries)

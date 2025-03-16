@@ -1,9 +1,9 @@
+use osmpbf::{Element, Relation};
+use serde_json::Value;
 use std::{
     collections::{HashMap, HashSet},
     time::Instant,
 };
-
-use osmpbf::{Element, Relation};
 use types::RelationWithMembers;
 
 use crate::element_collection_reader::ElementCollectReader;
@@ -17,7 +17,7 @@ pub fn read_osm_elements(
 ) {
     let required_tags: Vec<(&str, Option<&str>)> = vec![
         ("type", Some("boundary")),
-        ("admin_level", Some("2")),
+        ("admin_level", Some("4")),
         // ("boundary", Some("administrative")),
         // ("ISO3166-2", None),
     ];
@@ -72,9 +72,15 @@ fn read_relations(
                 .map(|member| member.member_id)
                 .collect();
 
+            let tags: serde_json::Map<String, Value> = relation
+                .tags()
+                .map(|(key, value)| (key.to_owned(), serde_json::Value::String(value.to_owned())))
+                .collect();
+
             let out_rel = RelationWithMembers {
                 id: relation.id(),
                 members,
+                tags,
             };
 
             Some(out_rel)
