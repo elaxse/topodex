@@ -5,7 +5,7 @@ use geo::{coord, Coord, MultiPolygon};
 use geojson::{feature::Id, Feature, Geometry, Value};
 use read_osm_data::read_osm_elements;
 use std::{collections::HashMap, error::Error, time::Instant};
-use types::{RelationWithLocations, RelationWithMembers, Way};
+use types::{ExtractConfig, RelationWithLocations, RelationWithMembers, Way};
 
 #[derive(Debug)]
 pub enum GeohashValue {
@@ -13,8 +13,8 @@ pub enum GeohashValue {
     PartialGeohash(Vec<MultiPolygon>),
 }
 
-pub fn extract(path: &str) -> Vec<Feature> {
-    let (relations, ways, nodes) = read_osm_elements(path);
+pub fn extract(path: &str, extract_config: &ExtractConfig) -> Vec<Feature> {
+    let (relations, ways, nodes) = read_osm_elements(path, extract_config);
     let start = Instant::now();
     println!(
         "Countries combination: {} seconds",

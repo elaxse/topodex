@@ -1,5 +1,6 @@
 use geo::{Coord, MultiPolygon};
 use geojson::JsonObject;
+use serde::Deserialize;
 
 #[derive(Debug, Clone)]
 pub struct RelationWithMembers {
@@ -31,4 +32,10 @@ pub struct GeohashIndex {
 pub struct ShouldCheck {
     pub hash: String,
     pub area: MultiPolygon,
+}
+
+#[derive(Deserialize)]
+pub struct ExtractConfig {
+    pub filters: Vec<(String, Option<String>)>,
+    pub extract_properties: Vec<(String, Option<String>)>,
 }

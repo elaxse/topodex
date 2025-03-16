@@ -4,26 +4,25 @@ use std::{
     collections::{HashMap, HashSet},
     time::Instant,
 };
-use types::RelationWithMembers;
+use types::{ExtractConfig, RelationWithMembers};
 
 use crate::element_collection_reader::ElementCollectReader;
 
 pub fn read_osm_elements(
     path: &str,
+    extract_config: &ExtractConfig,
 ) -> (
     Vec<RelationWithMembers>,
     HashMap<i64, Vec<i64>>,
     HashMap<i64, (f64, f64)>,
 ) {
-    let required_tags: Vec<(&str, Option<&str>)> = vec![
-        ("type", Some("boundary")),
-        ("admin_level", Some("4")),
-        // ("boundary", Some("administrative")),
-        // ("ISO3166-2", None),
-    ];
-
     let start = Instant::now();
-    let relations = read_relations(&path, &required_tags).unwrap();
+    let relations = read_relations(
+        &path,
+        &extract_config.filters,
+        &extract_config.extract_properties,
+    )
+    .unwrap();
     println!("Relations extract: {} seconds", start.elapsed().as_secs());
 
     let start = Instant::now();
@@ -55,7 +54,8 @@ pub fn read_osm_elements(
 
 fn read_relations(
     path: &str,
-    required_tags: &[(&str, Option<&str>)],
+    required_tags: &[(String, Option<String>)],
+    property_filters: &[(String, Option<String>)],
 ) -> Result<Vec<RelationWithMembers>, osmpbf::Error> {
     let relations = ElementCollectReader::from_path(path)?.elements(|element| match element {
         Element::Relation(relation) => {
@@ -74,7 +74,16 @@ fn read_relations(
 
             let tags: serde_json::Map<String, Value> = relation
                 .tags()
-                .map(|(key, value)| (key.to_owned(), serde_json::Value::String(value.to_owned())))
+                .filter_map(|(key, value)| {
+                    for (fkey, rkey) in property_filters {
+                        if fkey == key {
+                            let nkey = (rkey.as_deref().unwrap_or(fkey)).to_owned();
+                            let nval = serde_json::Value::String(value.to_owned());
+                            return Some((nkey, nval));
+                        }
+                    }
+                    None
+                })
                 .collect();
 
             let out_rel = RelationWithMembers {
@@ -91,12 +100,12 @@ fn read_relations(
     Ok(relations)
 }
 
-fn relation_filter(relation: &Relation, required_tags: &[(&str, Option<&str>)]) -> bool {
+fn relation_filter(relation: &Relation, required_tags: &[(String, Option<String>)]) -> bool {
     for required_tag in required_tags {
+        let req_val = required_tag.1.as_deref();
         let mut found_tag = false;
         for (key, val) in relation.tags() {
-            if key == required_tag.0 && (required_tag.1.is_none() || val == required_tag.1.unwrap())
-            {
+            if key == required_tag.0 && (req_val.is_none() || val == req_val.unwrap()) {
                 found_tag = true;
                 break;
             }

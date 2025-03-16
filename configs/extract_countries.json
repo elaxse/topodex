@@ -1,0 +1,7 @@
+{
+  "filters": [
+    ["type", "boundary"],
+    ["admin_level", "2"]
+  ],
+  "extract_properties": [["name", null]]
+}

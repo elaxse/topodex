@@ -6,7 +6,7 @@ use geojson::Feature;
 use ntex;
 use process::{extract_topologies, save_geohash_index};
 use std::{fs::read_to_string, str::FromStr};
-use types::GeohashIndex;
+use types::{ExtractConfig, GeohashIndex};
 
 #[derive(Parser)]
 #[command(version, about, long_about)]
@@ -33,6 +33,9 @@ enum Commands {
 
         #[arg(short, long)]
         features_output_path: String,
+
+        #[arg(short, long)]
+        config_path: String,
     },
     Process {
         #[arg(short, long)]
@@ -57,9 +60,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Extract {
             osm_pbf_file,
             features_output_path,
+            config_path,
         } => {
+            let config_str = read_to_string(&config_path)?;
+            let config: ExtractConfig = serde_json::from_str(&config_str)
+                .inspect_err(|e| eprintln!("Error: {e}"))
+                .unwrap();
+
             println!("Read file {}", osm_pbf_file);
-            let geometries = extract(&osm_pbf_file);
+            let geometries = extract(&osm_pbf_file, &config);
             println!("Received {} geometries", geometries.len());
 
             let geojson_str = geometries
