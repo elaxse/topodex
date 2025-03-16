@@ -1,4 +1,4 @@
-use geo::Coord;
+use geo::{Coord, MultiPolygon};
 
 #[derive(Debug, Clone)]
 pub struct RelationWithMembers {
@@ -16,4 +16,16 @@ pub struct RelationWithLocations {
 pub struct Way {
     pub id: i64,
     pub node_ids: Vec<i64>,
+}
+
+#[derive(Debug)]
+pub struct GeohashIndex {
+    pub hash: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ShouldCheck {
+    pub hash: String,
+    pub area: MultiPolygon,
 }

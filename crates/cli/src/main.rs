@@ -1,10 +1,12 @@
 use api::run_api;
 use clap::{Parser, Subcommand};
-use extract_osm::{extract_osm, extract_topologies, save_geohash_index, GeohashIndex};
+use extract::extract;
 use geo::Polygon;
 use geojson::Feature;
 use ntex;
+use process::{extract_topologies, save_geohash_index};
 use std::{fs::read_to_string, str::FromStr};
+use types::GeohashIndex;
 
 #[derive(Parser)]
 #[command(version, about, long_about)]
@@ -57,7 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             features_output_path,
         } => {
             println!("Read file {}", osm_pbf_file);
-            let geometries = extract_osm(&osm_pbf_file);
+            let geometries = extract(&osm_pbf_file);
             println!("Received {} geometries", geometries.len());
 
             let geojson_str = geometries
