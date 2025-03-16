@@ -4,7 +4,7 @@ mod read_osm_data;
 use geo::{coord, BooleanOps, Contains, Coord, Intersects, MultiPolygon, Polygon};
 use geohash::decode_bbox;
 use geojson::{feature::Id, Feature, Geometry, Value};
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use read_osm_data::read_osm_elements;
 use rocksdb::DB;
 use std::error::Error;
@@ -48,9 +48,9 @@ pub fn extract_topologies(
     max_geohash_level: usize,
 ) -> Result<Vec<GeohashIndex>, Box<dyn Error>> {
     let geohashes: Vec<GeohashIndex> = features
-        .par_iter()
+        .into_par_iter()
         .map(|feature| {
-            if let Some(geometry) = feature.clone().geometry {
+            if let Some(geometry) = feature.geometry {
                 let feature_shape_option = match &geometry.value {
                     Value::MultiPolygon(_) => {
                         let geo_polygon: MultiPolygon<f64> = MultiPolygon::try_from(geometry)?;
@@ -65,8 +65,7 @@ pub fn extract_topologies(
                         None
                     }
                 };
-                if let (Some(feature_shape), Some(feature_id)) =
-                    (feature_shape_option, feature.id.clone())
+                if let (Some(feature_shape), Some(feature_id)) = (feature_shape_option, feature.id)
                 {
                     let fid = match feature_id {
                         Id::String(s) => s,
