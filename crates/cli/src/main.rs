@@ -5,6 +5,7 @@ use geo::Polygon;
 use geojson::Feature;
 use ntex;
 use process::{extract_topologies, save_geohash_index};
+use std::thread;
 use std::{fs::read_to_string, str::FromStr};
 use types::{ExtractConfig, GeohashIndex};
 
@@ -13,6 +14,12 @@ use types::{ExtractConfig, GeohashIndex};
 struct Args {
     #[command(subcommand)]
     command: Commands,
+}
+
+fn default_thread_count() -> String {
+    thread::available_parallelism()
+        .map(|p| p.get().to_string())
+        .unwrap_or_else(|_| "1".to_string())
 }
 
 #[derive(Subcommand)]
@@ -26,6 +33,9 @@ enum Commands {
 
         #[arg(short, long, default_value_t = 8090)]
         port: u16,
+
+        #[arg(short, long, default_value_os_t = default_thread_count())]
+        threads: String,
     },
     Extract {
         #[arg(short, long)]
@@ -105,8 +115,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             geohash_db,
             max_geohash_level,
             port,
+            threads,
         } => {
-            run_api(&geohash_db, max_geohash_level, port).await?;
+            let t: usize = threads.parse().unwrap();
+            run_api(&geohash_db, max_geohash_level, port, t).await?;
         }
     }
     Ok(())
@@ -115,9 +127,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn geohash_to_geojson(geohash_indexes: &Vec<GeohashIndex>) -> String {
     let bboxes = geohash_indexes
         .iter()
-        .map(|geohash_index| geohash::decode_bbox(&geohash_index.hash))
-        .filter_map(Result::ok)
-        .map(|bbox| bbox.to_polygon())
+        .filter_map(|geohash_index| match geohash_index {
+            GeohashIndex::DirectValue { hash, value: _ } => {
+                Some(geohash::decode_bbox(&hash).unwrap().to_polygon())
+            }
+            GeohashIndex::PartialValue {
+                hash: _,
+                value: _,
+                shape,
+            } => shape.into_iter().map(|t| t.clone()).next(),
+        })
         .collect::<Vec<Polygon>>();
 
     let multi_polygon = geojson::Value::from(&geo::MultiPolygon(bboxes));

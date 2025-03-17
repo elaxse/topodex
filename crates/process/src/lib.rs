@@ -1,13 +1,13 @@
 mod fill_polygon;
 
-use std::error::Error;
+use std::{collections::HashMap, error::Error};
 
 use fill_polygon::fill_polygon;
 use geo::{MultiPolygon, Polygon};
 use geojson::{Feature, Value, feature::Id};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rocksdb::DB;
-use types::GeohashIndex;
+use types::{GeohashIndex, GeohashValue, UndecidedValue};
 
 pub fn extract_topologies(
     features: Vec<Feature>,
@@ -53,9 +53,31 @@ pub fn save_geohash_index(
     geohashes: Vec<GeohashIndex>,
     path: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let mut map = HashMap::<String, GeohashValue>::new();
+
+    for geohash_index in geohashes {
+        match geohash_index {
+            GeohashIndex::DirectValue { hash, value } => {
+                map.insert(hash, GeohashValue::DirectValue { value });
+            }
+            GeohashIndex::PartialValue { hash, value, shape } => {
+                if let Some(GeohashValue::Undecided { options }) = map.get_mut(&hash) {
+                    options.push(UndecidedValue { value, shape });
+                } else {
+                    map.insert(
+                        hash,
+                        GeohashValue::Undecided {
+                            options: vec![UndecidedValue { value, shape }],
+                        },
+                    );
+                }
+            }
+        }
+    }
+
     let db = DB::open_default(path).unwrap();
-    for geohash in geohashes {
-        db.put(&geohash.hash.as_bytes(), &geohash.value.as_bytes())?;
+    for (hash, value) in map.iter() {
+        db.put(hash.as_bytes(), bitcode::serialize(value).unwrap())?;
     }
 
     db.flush()?;

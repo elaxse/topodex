@@ -1,6 +1,6 @@
 use geo::{Coord, MultiPolygon};
 use geojson::JsonObject;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone)]
 pub struct RelationWithMembers {
@@ -23,9 +23,16 @@ pub struct Way {
 }
 
 #[derive(Debug)]
-pub struct GeohashIndex {
-    pub hash: String,
-    pub value: String,
+pub enum GeohashIndex {
+    DirectValue {
+        hash: String,
+        value: String,
+    },
+    PartialValue {
+        hash: String,
+        value: String,
+        shape: MultiPolygon,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -38,4 +45,16 @@ pub struct ShouldCheck {
 pub struct ExtractConfig {
     pub filters: Vec<(String, Option<String>)>,
     pub extract_properties: Vec<(String, Option<String>)>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct UndecidedValue {
+    pub value: String,
+    pub shape: MultiPolygon,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum GeohashValue {
+    DirectValue { value: String },
+    Undecided { options: Vec<UndecidedValue> },
 }

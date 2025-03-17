@@ -7,7 +7,12 @@ use ntex::web;
 use rocksdb::{DB, Options};
 use std::sync::Arc;
 
-pub async fn run_api(db_name: &str, max_geohash_level: usize, port: u16) -> std::io::Result<()> {
+pub async fn run_api(
+    db_name: &str,
+    max_geohash_level: usize,
+    port: u16,
+    workers: usize,
+) -> std::io::Result<()> {
     println!("Starting webserver on port {}", port);
     let options = Options::default();
     let db = Arc::new(DB::open_for_read_only(&options, db_name, false).unwrap());
@@ -21,7 +26,8 @@ pub async fn run_api(db_name: &str, max_geohash_level: usize, port: u16) -> std:
             .service(lookup_single)
             .service(lookup_multiple)
     })
-    .bind(("127.0.0.1", port))?
+    .workers(workers)
+    .bind(("0.0.0.0", port))?
     .run()
     .await
 }
