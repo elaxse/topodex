@@ -6,7 +6,7 @@ use types::{GeohashIndex, ShouldCheck};
 
 pub fn fill_polygon(
     geo_polygon: MultiPolygon,
-    country_id: String,
+    polygon_value: String,
     max_geohash_level: usize,
 ) -> Result<Vec<GeohashIndex>, Box<dyn Error + Send + Sync>> {
     let mut geohashes = Vec::<GeohashIndex>::new();
@@ -33,7 +33,7 @@ pub fn fill_polygon(
             if check.area.contains(&rect) {
                 geohashes.push(GeohashIndex::DirectValue {
                     hash: check.hash.clone(),
-                    value: country_id.clone(),
+                    value: polygon_value.clone(),
                 })
             } else if check.area.intersects(&rect) && geohash_level < max_geohash_level {
                 let intersecting_polygon = check.area.intersection(&mp);
@@ -48,7 +48,7 @@ pub fn fill_polygon(
             } else if check.area.intersects(&rect) && geohash_level == max_geohash_level {
                 geohashes.push(GeohashIndex::PartialValue {
                     hash: check.hash,
-                    value: country_id.clone(),
+                    value: polygon_value.clone(),
                     shape: check.area.intersection(&mp),
                 });
             }
@@ -59,7 +59,7 @@ pub fn fill_polygon(
 
     println!(
         "processed relation {:?} in {:.2?}",
-        country_id,
+        polygon_value,
         start.elapsed()
     );
     Ok(geohashes)

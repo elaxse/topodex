@@ -42,9 +42,10 @@ pub struct ShouldCheck {
 }
 
 #[derive(Deserialize)]
-pub struct ExtractConfig {
+pub struct TopodexConfig {
     pub filters: Vec<(String, Option<String>)>,
     pub extract_properties: Vec<(String, Option<String>)>,
+    pub process_property_name: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

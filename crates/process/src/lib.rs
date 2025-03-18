@@ -4,14 +4,15 @@ use std::{collections::HashMap, error::Error};
 
 use fill_polygon::fill_polygon;
 use geo::{MultiPolygon, Polygon};
-use geojson::{Feature, Value, feature::Id};
+use geojson::{Feature, Value};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rocksdb::DB;
-use types::{GeohashIndex, GeohashValue, UndecidedValue};
+use types::{GeohashIndex, GeohashValue, TopodexConfig, UndecidedValue};
 
 pub fn extract_topologies(
     features: Vec<Feature>,
     max_geohash_level: usize,
+    config: &TopodexConfig,
 ) -> Result<Vec<GeohashIndex>, Box<dyn Error>> {
     let geohashes: Vec<GeohashIndex> = features
         .into_par_iter()
@@ -31,13 +32,20 @@ pub fn extract_topologies(
                         None
                     }
                 };
-                if let (Some(feature_shape), Some(feature_id)) = (feature_shape_option, feature.id)
-                {
-                    let fid = match feature_id {
-                        Id::String(s) => s,
-                        Id::Number(n) => n.to_string(),
-                    };
-                    return fill_polygon(feature_shape, fid, max_geohash_level);
+
+                if let (Some(feature_shape), Some(shape_value)) = (
+                    feature_shape_option,
+                    feature.properties.and_then(|properties| {
+                        properties
+                            .get(&config.process_property_name)
+                            .and_then(|property_value| {
+                                property_value
+                                    .as_str()
+                                    .map(|property_value_str| property_value_str.to_owned())
+                            })
+                    }),
+                ) {
+                    return fill_polygon(feature_shape, shape_value, max_geohash_level);
                 }
             }
             Ok(Vec::new())

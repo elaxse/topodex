@@ -4,13 +4,13 @@ use std::{
     collections::{HashMap, HashSet},
     time::Instant,
 };
-use types::{ExtractConfig, RelationWithMembers};
+use types::{RelationWithMembers, TopodexConfig};
 
 use crate::element_collection_reader::ElementCollectReader;
 
 pub fn read_osm_elements(
     path: &str,
-    extract_config: &ExtractConfig,
+    extract_config: &TopodexConfig,
 ) -> (
     Vec<RelationWithMembers>,
     HashMap<i64, Vec<i64>>,

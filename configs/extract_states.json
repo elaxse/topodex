@@ -3,5 +3,6 @@
     ["type", "boundary"],
     ["admin_level", "4"]
   ],
-  "extract_properties": [["name", "state_name"]]
+  "extract_properties": [["name:en", "name"]],
+  "process_property_name": "name"
 }

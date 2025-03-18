@@ -7,19 +7,19 @@ use ntex;
 use process::{extract_topologies, save_geohash_index};
 use std::thread;
 use std::{fs::read_to_string, str::FromStr};
-use types::{ExtractConfig, GeohashIndex};
+use types::{GeohashIndex, TopodexConfig};
+
+fn default_thread_count() -> String {
+    thread::available_parallelism()
+        .map(|p| p.get().to_string())
+        .unwrap_or_else(|_| "1".to_string())
+}
 
 #[derive(Parser)]
 #[command(version, about, long_about)]
 struct Args {
     #[command(subcommand)]
     command: Commands,
-}
-
-fn default_thread_count() -> String {
-    thread::available_parallelism()
-        .map(|p| p.get().to_string())
-        .unwrap_or_else(|_| "1".to_string())
 }
 
 #[derive(Subcommand)]
@@ -59,6 +59,9 @@ enum Commands {
 
         #[arg(short, long)]
         geohash_db_output_path: String,
+
+        #[arg(short, long)]
+        config_path: String,
     },
 }
 
@@ -72,11 +75,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             features_output_path,
             config_path,
         } => {
-            let config_str = read_to_string(&config_path)?;
-            let config: ExtractConfig = serde_json::from_str(&config_str)
-                .inspect_err(|e| eprintln!("Error: {e}"))
-                .unwrap();
-
+            let config = topodex_config(&config_path);
             println!("Read file {}", osm_pbf_file);
             let geometries = extract(&osm_pbf_file, &config);
             println!("Received {} geometries", geometries.len());
@@ -94,14 +93,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             max_geohash_level,
             processed_features_output_path,
             geohash_db_output_path,
+            config_path,
         } => {
+            let config = topodex_config(&config_path);
+
             let features_str = read_to_string(features_output_path)?;
             let geometries: Vec<Feature> = features_str
                 .split("\n")
                 .into_iter()
                 .map(|feature_str| Feature::from_str(feature_str).unwrap())
                 .collect();
-            let geohash_indexes = extract_topologies(geometries, max_geohash_level)?;
+            let geohash_indexes = extract_topologies(geometries, max_geohash_level, &config)?;
             println!("Geohash indexes count: {}", geohash_indexes.len());
 
             if let Some(output_path) = processed_features_output_path {
@@ -122,6 +124,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     Ok(())
+}
+
+fn topodex_config(config_path: &str) -> TopodexConfig {
+    let config_str = read_to_string(&config_path).unwrap();
+    serde_json::from_str(&config_str)
+        .inspect_err(|e| eprintln!("Error: {e}"))
+        .unwrap()
 }
 
 fn geohash_to_geojson(geohash_indexes: &Vec<GeohashIndex>) -> String {

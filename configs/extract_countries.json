@@ -3,5 +3,6 @@
     ["type", "boundary"],
     ["admin_level", "2"]
   ],
-  "extract_properties": [["name", null]]
+  "extract_properties": [["name", null]],
+  "process_property_name": "name"
 }
