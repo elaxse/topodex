@@ -1,11 +1,11 @@
 mod element_collection_reader;
 mod read_osm_data;
 
-use geo::{coord, Coord, MultiPolygon};
+use geo::{coord, Coord, LineString, MultiPolygon, Polygon, Within};
 use geojson::{feature::Id, Feature, Geometry, Value};
 use read_osm_data::read_osm_elements;
 use std::{collections::HashMap, error::Error, time::Instant};
-use types::{RelationWithLocations, RelationWithMembers, TopodexConfig, Way};
+use types::{RelationMember, RelationWithLocations, RelationWithMembers, TopodexConfig, Way};
 
 #[derive(Debug)]
 pub enum GeohashValue {
@@ -26,12 +26,7 @@ pub fn extract(path: &str, extract_config: &TopodexConfig) -> Vec<Feature> {
     countries
         .into_iter()
         .map(|country| {
-            let geometry = Geometry::new(Value::Polygon(vec![country
-                .locations
-                .iter()
-                .flatten()
-                .map(|location| vec![location.x, location.y])
-                .collect()]));
+            let geometry = Geometry::new(Value::from(&country.shape));
 
             Feature {
                 bbox: None,
@@ -44,21 +39,87 @@ pub fn extract(path: &str, extract_config: &TopodexConfig) -> Vec<Feature> {
         .collect::<Vec<Feature>>()
 }
 
-fn extract_ways(relation: &RelationWithMembers, ways: &HashMap<i64, Vec<i64>>) -> Vec<Way> {
+fn extract_ways(
+    relation: &RelationWithMembers,
+    ways: &HashMap<i64, Vec<i64>>,
+) -> (Vec<Way>, Vec<Way>) {
     relation
         .members
         .iter()
         .filter_map(|way| {
-            if let Some(node_ids) = ways.get(&way) {
+            if let Some(node_ids) = ways.get(&way.to_i64()) {
                 Some(Way {
-                    id: way.clone(),
+                    id: way.to_i64(),
                     node_ids: node_ids.to_vec(),
+                    outer: matches!(way, RelationMember::OuterMember { .. }),
                 })
             } else {
                 None
             }
         })
-        .collect()
+        .partition(|way| way.outer)
+}
+
+fn build_polygons(ways: &mut Vec<Way>, nodes: &HashMap<i64, (f64, f64)>) -> Vec<Polygon> {
+    let mut polygons = Vec::<Polygon>::new();
+    let mut relation_data_complete = true;
+
+    while !ways.is_empty() {
+        let start_node_id = ways.get(0).unwrap().node_ids.get(0).unwrap().clone();
+        let mut polygon_parts = Vec::<Coord>::new();
+        let mut search_node_id = start_node_id.clone();
+        if let Some((lng, lat)) = nodes.get(&start_node_id) {
+            polygon_parts.push(coord! {x: *lng, y: *lat});
+        }
+
+        loop {
+            if let Some(way) = find_match(&search_node_id, ways) {
+                let mut locations: Vec<Coord> = way
+                    .node_ids
+                    .iter()
+                    .skip(1)
+                    .map(|node_id| nodes.get(node_id))
+                    .flatten()
+                    .map(|(lon, lat)| coord! {x: lon.clone(), y: lat.clone()})
+                    .collect();
+
+                polygon_parts.append(&mut locations);
+
+                search_node_id = way.node_ids.last().unwrap().clone();
+
+                if search_node_id == start_node_id {
+                    break;
+                }
+            } else {
+                relation_data_complete = false;
+                break;
+            }
+        }
+
+        if !relation_data_complete {
+            break;
+        }
+        let outline = LineString::new(polygon_parts);
+        polygons.push(Polygon::new(outline, vec![]));
+    }
+    polygons
+}
+fn assemble_polygons(outer_polygons: &Vec<Polygon>, inner_polygons: &Vec<Polygon>) -> MultiPolygon {
+    let mut result_polygons = Vec::new();
+
+    for outer_polygon in outer_polygons.iter() {
+        let mut polygon = outer_polygon.clone();
+
+        for inner_polygon in inner_polygons {
+            if inner_polygon.is_within(outer_polygon) {
+                polygon.interiors_push(inner_polygon.exterior().clone());
+            }
+        }
+
+        result_polygons.push(polygon);
+    }
+
+    MultiPolygon::new(result_polygons)
 }
 
 fn build_relations(
@@ -66,70 +127,26 @@ fn build_relations(
     ways: HashMap<i64, Vec<i64>>,
     nodes: HashMap<i64, (f64, f64)>,
 ) -> Result<Vec<RelationWithLocations>, Box<dyn Error>> {
-    let mut countries = Vec::<RelationWithLocations>::new();
+    let mut processed_relations = Vec::<RelationWithLocations>::new();
 
     for relation in relations {
-        let mut relation_ways: Vec<Way> = extract_ways(&relation, &ways);
+        let (mut outer_ways, mut inner_ways) = extract_ways(&relation, &ways);
 
-        let mut relation_data_complete = true;
-        let mut parts: Vec<Vec<Coord>> = vec![];
+        let outer_polygons = build_polygons(&mut outer_ways, &nodes);
+        let inner_polygons = build_polygons(&mut inner_ways, &nodes);
+        let multi_polygon = assemble_polygons(&outer_polygons, &inner_polygons);
 
-        while !relation_ways.is_empty() {
-            let start_node_id: &i64 = &relation_ways
-                .get(0)
-                .unwrap()
-                .node_ids
-                .get(0)
-                .unwrap()
-                .clone();
-            let mut search_node_id = start_node_id.clone();
-
-            let mut part: Vec<Coord<f64>> = vec![];
-            let first_node = nodes.get(start_node_id).unwrap();
-            part.push(coord! {x: first_node.0, y: first_node.1});
-
-            loop {
-                if let Some(way) = find_match(&search_node_id, &mut relation_ways) {
-                    let mut locations: Vec<Coord> = way
-                        .node_ids
-                        .iter()
-                        .skip(1)
-                        .map(|node_id| nodes.get(node_id))
-                        .flatten()
-                        .map(|(lon, lat)| coord! {x: lon.clone(), y: lat.clone()})
-                        .collect();
-
-                    part.append(&mut locations);
-
-                    search_node_id = way.node_ids.last().unwrap().clone();
-
-                    if &search_node_id == start_node_id {
-                        break;
-                    }
-                } else {
-                    // in case not whole shape is present make connection to starting point to be valid polygon
-                    relation_data_complete = false;
-                    break;
-                }
-            }
-
-            if !relation_data_complete {
-                break;
-            }
-            parts.push(part);
-        }
-
-        if !relation_data_complete {
+        if outer_polygons.len() < 1 {
             continue;
         }
 
-        countries.push(RelationWithLocations {
+        processed_relations.push(RelationWithLocations {
             id: relation.id,
-            locations: parts,
+            shape: multi_polygon,
             tags: relation.tags,
         })
     }
-    Ok(countries)
+    Ok(processed_relations)
 }
 
 fn find_match(node_id: &i64, ways: &mut Vec<Way>) -> Option<Way> {

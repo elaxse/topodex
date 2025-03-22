@@ -4,7 +4,7 @@ use std::{
     collections::{HashMap, HashSet},
     time::Instant,
 };
-use types::{RelationWithMembers, TopodexConfig};
+use types::{RelationMember, RelationWithMembers, TopodexConfig};
 
 use crate::element_collection_reader::ElementCollectReader;
 
@@ -28,7 +28,7 @@ pub fn read_osm_elements(
     let start = Instant::now();
     let ways_set: HashSet<i64> = relations
         .iter()
-        .map(|relation| relation.members.clone())
+        .map(|relation| relation.members.iter().map(|member| member.to_i64()))
         .flatten()
         .collect();
     println!("Ways set: {} seconds", start.elapsed().as_secs());
@@ -65,11 +65,15 @@ fn read_relations(
                 return None;
             }
 
-            let members: Vec<i64> = relation
+            let members: Vec<RelationMember> = relation
                 .members()
                 .into_iter()
-                .filter(|member| member.role().unwrap() == "outer")
-                .map(|member| member.member_id)
+                .filter_map(|member| match member.role() {
+                    Result::Ok("outer") => Some(RelationMember::OuterMember(member.member_id)),
+                    Result::Ok("inner") => Some(RelationMember::InnerMember(member.member_id)),
+                    Result::Ok(_) => None,
+                    Result::Err(_) => None,
+                })
                 .collect();
 
             let tags: serde_json::Map<String, Value> = relation

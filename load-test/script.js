@@ -8,8 +8,8 @@ export const options = {
 
 export default function () {
   const request = () => ({
-    lat: 48 + Math.random() * 2 - 1,
-    lng: 7 + Math.random() * 4 - 2,
+    lat: Math.random() * 180 - 90,
+    lng: Math.random() * 360 - 180,
   });
   const req = {
     locations: Array(200)

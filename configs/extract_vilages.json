@@ -1,8 +1,8 @@
 {
   "filters": [
     ["type", "boundary"],
-    ["admin_level", "4"]
+    ["admin_level", "8"]
   ],
-  "extract_properties": [["ISO3166-2", "name"]],
+  "extract_properties": [["name", "name"]],
   "process_property_name": "name"
 }
