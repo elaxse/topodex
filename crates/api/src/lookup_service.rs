@@ -10,11 +10,11 @@ pub async fn lookup_coordinate(
 ) -> Result<String, GeohashError> {
     let hash = encode(coord, max_geohash_level)?;
 
-    for i in 1..=hash.len() {
-        let substring = &hash[0..i];
-        let data = db.get(substring.as_bytes()).unwrap();
+    let substrings = (1..=hash.len()).map(|i| &hash[0..i]).collect::<Vec<&str>>();
+    let vals = db.multi_get(substrings);
 
-        if let Some(out) = data {
+    for lookup_val in vals {
+        if let Result::Ok(Some(out)) = lookup_val {
             let res = bitcode::deserialize::<GeohashValue>(&out).unwrap();
 
             let contains_res = match res {
