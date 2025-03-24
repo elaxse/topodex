@@ -5,7 +5,7 @@ use ntex::web;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use serde::{Deserialize, Serialize};
 
-use crate::lookup_service::lookup_coordinate;
+use crate::lookup_service::lookup_coordinates;
 
 #[derive(Deserialize)]
 pub struct Location {
@@ -37,10 +37,8 @@ async fn lookup_single(
         x: location.lng,
         y: location.lat,
     };
-    let res = lookup_coordinate(&state.db, coord, state.max_geohash_level)
-        .await
-        .unwrap();
-    web::HttpResponse::Ok().body(res)
+    let res = lookup_coordinates(&state.db, vec![coord], state.max_geohash_level).unwrap();
+    web::HttpResponse::Ok().body(res.into_iter().next().unwrap())
 }
 
 #[web::post("/lookup")]
@@ -55,17 +53,11 @@ async fn lookup_multiple(
             x: location.lng,
             y: location.lat,
         })
-        .map(|coord| lookup_coordinate(&state.db, coord, state.max_geohash_level))
+        // .map(|coord| lookup_coordinates(&state.db, coord, state.max_geohash_level))
         .collect();
 
-    let resolved_locations: Vec<_> = ntex::util::join_all(coordinates)
-        .await
-        .iter()
-        .filter_map(|t| match t {
-            Result::Ok(res) => Some(res.to_owned()),
-            Result::Err(_) => None,
-        })
-        .collect();
+    let resolved_locations =
+        lookup_coordinates(&state.db, coordinates, state.max_geohash_level).unwrap();
 
     let location_response = LocationsResponse {
         locations: resolved_locations,
