@@ -138,16 +138,17 @@ fn topodex_config(config_path: &str) -> Result<TopodexConfig> {
 fn geohash_to_geojson(geohash_indexes: &Vec<GeohashIndex>) -> String {
     let bboxes = geohash_indexes
         .iter()
-        .filter_map(|geohash_index| match geohash_index {
+        .map(|geohash_index| match geohash_index {
             GeohashIndex::DirectValue { hash, value: _ } => {
-                Some(geohash::decode_bbox(&hash).unwrap().to_polygon())
+                vec![geohash::decode_bbox(&hash).unwrap().to_polygon()]
             }
             GeohashIndex::PartialValue {
                 hash: _,
                 value: _,
                 shape,
-            } => shape.into_iter().map(|t| t.clone()).next(),
+            } => shape.into_iter().map(|t| t.clone()).collect(),
         })
+        .flatten()
         .collect::<Vec<Polygon>>();
 
     let multi_polygon = geojson::Value::from(&geo::MultiPolygon(bboxes));
