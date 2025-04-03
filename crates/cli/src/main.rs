@@ -1,3 +1,4 @@
+use anyhow::{Context, Ok, Result};
 use api::run_api;
 use clap::{Parser, Subcommand};
 use extract::extract;
@@ -66,7 +67,7 @@ enum Commands {
 }
 
 #[ntex::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     let cli = Args::parse();
 
     match cli.command {
@@ -75,9 +76,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             features_output_path,
             config_path,
         } => {
-            let config = topodex_config(&config_path);
+            let config = topodex_config(&config_path)?;
             println!("Read file {}", osm_pbf_file);
-            let geometries = extract(&osm_pbf_file, &config);
+            let geometries = extract(&osm_pbf_file, &config)?;
             println!("Received {} geometries", geometries.len());
 
             let geojson_str = geometries
@@ -95,7 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             geohash_db_output_path,
             config_path,
         } => {
-            let config = topodex_config(&config_path);
+            let config = topodex_config(&config_path)?;
 
             let features_str = read_to_string(features_output_path)?;
             let geometries: Vec<Feature> = features_str
@@ -119,18 +120,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             port,
             threads,
         } => {
-            let t: usize = threads.parse().unwrap();
-            run_api(&geohash_db, max_geohash_level, port, t).await?;
+            let thread_count: usize = threads.parse()?;
+            run_api(&geohash_db, max_geohash_level, port, thread_count).await?;
         }
     }
     Ok(())
 }
 
-fn topodex_config(config_path: &str) -> TopodexConfig {
-    let config_str = read_to_string(&config_path).unwrap();
-    serde_json::from_str(&config_str)
-        .inspect_err(|e| eprintln!("Error: {e}"))
-        .unwrap()
+fn topodex_config(config_path: &str) -> Result<TopodexConfig> {
+    let config_str = read_to_string(&config_path)
+        .with_context(|| format!("Failed to read configuration from {}", config_path))?;
+    let config: TopodexConfig = serde_json::from_str(&config_str)
+        .with_context(|| format!("Failed to parse provided topodex config at {}", config_path))?;
+    Ok(config)
 }
 
 fn geohash_to_geojson(geohash_indexes: &Vec<GeohashIndex>) -> String {

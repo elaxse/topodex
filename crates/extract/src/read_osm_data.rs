@@ -1,3 +1,4 @@
+use anyhow::Result;
 use osmpbf::{Element, Relation};
 use serde_json::Value;
 use std::{
@@ -11,18 +12,17 @@ use crate::element_collection_reader::ElementCollectReader;
 pub fn read_osm_elements(
     path: &str,
     extract_config: &TopodexConfig,
-) -> (
+) -> Result<(
     Vec<RelationWithMembers>,
     HashMap<i64, Vec<i64>>,
     HashMap<i64, (f64, f64)>,
-) {
+)> {
     let start = Instant::now();
     let relations = read_relations(
         &path,
         &extract_config.filters,
         &extract_config.extract_properties,
-    )
-    .unwrap();
+    )?;
     println!("Relations extract: {} seconds", start.elapsed().as_secs());
 
     let start = Instant::now();
@@ -34,7 +34,7 @@ pub fn read_osm_elements(
     println!("Ways set: {} seconds", start.elapsed().as_secs());
 
     let start = Instant::now();
-    let ways = read_ways(&path, &ways_set).unwrap();
+    let ways = read_ways(&path, &ways_set)?;
     println!("Ways extract: {} seconds", start.elapsed().as_secs());
 
     let start = Instant::now();
@@ -46,10 +46,10 @@ pub fn read_osm_elements(
     println!("Nodes set: {} seconds", start.elapsed().as_secs());
 
     let start = Instant::now();
-    let nodes = read_nodes(&path, &nodes_set).unwrap();
+    let nodes = read_nodes(&path, &nodes_set)?;
     println!("Nodes extract: {} seconds", start.elapsed().as_secs());
 
-    (relations, ways, nodes)
+    Ok((relations, ways, nodes))
 }
 
 fn read_relations(

@@ -10,6 +10,6 @@ rayon = "1.10.0"
 geojson = { version = "0.24.1", features = ["geo-types"] }
 geo = { workspace = true }
 geohash.workspace = true
-rusty-leveldb = "3.0.2"
+anyhow = { workspace = true }
 rocksdb = { version = "0.23.0", features = ["multi-threaded-cf"] }
 serde_json = "1.0.140"

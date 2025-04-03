@@ -1,29 +1,24 @@
 mod element_collection_reader;
 mod read_osm_data;
 
+use anyhow::Result;
 use geo::{coord, Coord, LineString, MultiPolygon, Polygon, Within};
 use geojson::{feature::Id, Feature, Geometry, Value};
 use read_osm_data::read_osm_elements;
-use std::{collections::HashMap, error::Error, time::Instant};
+use std::{collections::HashMap, time::Instant};
 use types::{RelationMember, RelationWithLocations, RelationWithMembers, TopodexConfig, Way};
 
-#[derive(Debug)]
-pub enum GeohashValue {
-    GeohashCountry(u16),
-    PartialGeohash(Vec<MultiPolygon>),
-}
-
-pub fn extract(path: &str, extract_config: &TopodexConfig) -> Vec<Feature> {
-    let (relations, ways, nodes) = read_osm_elements(path, extract_config);
+pub fn extract(path: &str, extract_config: &TopodexConfig) -> Result<Vec<Feature>> {
+    let (relations, ways, nodes) = read_osm_elements(path, extract_config)?;
     let start = Instant::now();
     println!(
         "Countries combination: {} seconds",
         start.elapsed().as_secs()
     );
 
-    let countries = build_relations(relations, ways, nodes).unwrap();
+    let countries = build_relations(relations, ways, nodes)?;
 
-    countries
+    Ok(countries
         .into_iter()
         .map(|country| {
             let geometry = Geometry::new(Value::from(&country.shape));
@@ -36,7 +31,7 @@ pub fn extract(path: &str, extract_config: &TopodexConfig) -> Vec<Feature> {
                 foreign_members: None,
             }
         })
-        .collect::<Vec<Feature>>()
+        .collect::<Vec<Feature>>())
 }
 
 fn extract_ways(
@@ -60,7 +55,7 @@ fn extract_ways(
         .partition(|way| way.outer)
 }
 
-fn build_polygons(ways: &mut Vec<Way>, nodes: &HashMap<i64, (f64, f64)>) -> Vec<Polygon> {
+fn build_polygons(ways: &mut Vec<Way>, nodes: &HashMap<i64, (f64, f64)>) -> Result<Vec<Polygon>> {
     let mut polygons = Vec::<Polygon>::new();
     let mut relation_data_complete = true;
 
@@ -102,7 +97,7 @@ fn build_polygons(ways: &mut Vec<Way>, nodes: &HashMap<i64, (f64, f64)>) -> Vec<
         let outline = LineString::new(polygon_parts);
         polygons.push(Polygon::new(outline, vec![]));
     }
-    polygons
+    Ok(polygons)
 }
 fn assemble_polygons(outer_polygons: &Vec<Polygon>, inner_polygons: &Vec<Polygon>) -> MultiPolygon {
     let mut result_polygons = Vec::new();
@@ -126,14 +121,14 @@ fn build_relations(
     relations: Vec<RelationWithMembers>,
     ways: HashMap<i64, Vec<i64>>,
     nodes: HashMap<i64, (f64, f64)>,
-) -> Result<Vec<RelationWithLocations>, Box<dyn Error>> {
+) -> Result<Vec<RelationWithLocations>> {
     let mut processed_relations = Vec::<RelationWithLocations>::new();
 
     for relation in relations {
         let (mut outer_ways, mut inner_ways) = extract_ways(&relation, &ways);
 
-        let outer_polygons = build_polygons(&mut outer_ways, &nodes);
-        let inner_polygons = build_polygons(&mut inner_ways, &nodes);
+        let outer_polygons = build_polygons(&mut outer_ways, &nodes)?;
+        let inner_polygons = build_polygons(&mut inner_ways, &nodes)?;
         let multi_polygon = assemble_polygons(&outer_polygons, &inner_polygons);
 
         if outer_polygons.len() < 1 {

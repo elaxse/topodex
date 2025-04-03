@@ -1,5 +1,4 @@
-use std::error::Error;
-
+use anyhow::Result;
 use geo::{BooleanOps, Contains, Intersects, MultiPolygon};
 use geohash::decode_bbox;
 use types::{GeohashIndex, ShouldCheck};
@@ -8,7 +7,7 @@ pub fn fill_polygon(
     geo_polygon: MultiPolygon,
     polygon_value: String,
     max_geohash_level: usize,
-) -> Result<Vec<GeohashIndex>, Box<dyn Error + Send + Sync>> {
+) -> Result<Vec<GeohashIndex>> {
     let mut geohashes = Vec::<GeohashIndex>::new();
     let geohash_possibilities: Vec<String> = "0123456789bcdefghjkmnpqrstuvwxyz"
         .chars()

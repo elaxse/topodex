@@ -1,19 +1,19 @@
 mod fill_polygon;
 
-use std::{collections::HashMap, error::Error};
-
+use anyhow::Result;
 use fill_polygon::fill_polygon;
 use geo::{MultiPolygon, Polygon};
 use geojson::{Feature, Value};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rocksdb::DB;
+use std::collections::HashMap;
 use types::{GeohashIndex, GeohashValue, TopodexConfig, UndecidedValue};
 
 pub fn extract_topologies(
     features: Vec<Feature>,
     max_geohash_level: usize,
     config: &TopodexConfig,
-) -> Result<Vec<GeohashIndex>, Box<dyn Error>> {
+) -> Result<Vec<GeohashIndex>> {
     let geohashes: Vec<GeohashIndex> = features
         .into_par_iter()
         .map(|feature| {
@@ -57,10 +57,7 @@ pub fn extract_topologies(
     Ok(geohashes)
 }
 
-pub fn save_geohash_index(
-    geohashes: Vec<GeohashIndex>,
-    path: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn save_geohash_index(geohashes: Vec<GeohashIndex>, path: &str) -> Result<()> {
     let mut map = HashMap::<String, GeohashValue>::new();
 
     for geohash_index in geohashes {
