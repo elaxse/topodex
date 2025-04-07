@@ -5,7 +5,7 @@ use std::{
     collections::{HashMap, HashSet},
     time::Instant,
 };
-use types::{RelationMember, RelationWithMembers, TopodexConfig};
+use util::{RelationMember, RelationWithMembers, TopodexConfig};
 
 use crate::element_collection_reader::ElementCollectReader;
 

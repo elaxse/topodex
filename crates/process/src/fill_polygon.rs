@@ -1,7 +1,7 @@
 use anyhow::Result;
 use geo::{BooleanOps, Contains, Intersects, MultiPolygon};
 use geohash::decode_bbox;
-use types::{GeohashIndex, ShouldCheck};
+use util::{GeohashIndex, ShouldCheck};
 
 pub fn fill_polygon(
     geo_polygon: MultiPolygon,

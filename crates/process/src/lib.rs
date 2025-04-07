@@ -7,7 +7,8 @@ use geojson::{Feature, Value};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rocksdb::DB;
 use std::collections::HashMap;
-use types::{GeohashIndex, GeohashValue, TopodexConfig, UndecidedValue};
+use util::rocksdb_options;
+use util::{GeohashIndex, GeohashValue, TopodexConfig, UndecidedValue};
 
 pub fn extract_topologies(
     features: Vec<Feature>,
@@ -80,7 +81,8 @@ pub fn save_geohash_index(geohashes: Vec<GeohashIndex>, path: &str) -> Result<()
         }
     }
 
-    let db = DB::open_default(path).unwrap();
+    let rocksdb_options = rocksdb_options();
+    let db = DB::open(&rocksdb_options, path)?;
     for (hash, value) in map.iter() {
         db.put(hash.as_bytes(), bitcode::serialize(value).unwrap())?;
     }

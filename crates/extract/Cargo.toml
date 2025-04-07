@@ -4,12 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-types = { version = "0.1.0", path = "../types" }
+util = { version = "0.1.0", path = "../util" }
 osmpbf = "0.3.4"
 rayon = "1.10.0"
 geojson = { version = "0.24.1", features = ["geo-types"] }
 geo = { workspace = true }
 geohash.workspace = true
 anyhow = { workspace = true }
-rocksdb = { version = "0.23.0", features = ["multi-threaded-cf"] }
 serde_json = "1.0.140"

@@ -1,9 +1,10 @@
 [package]
-name = "types"
+name = "util"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 geo.workspace = true
+rocksdb.workspace = true
 geojson = "0.24.2"
 serde = "1.0.219"

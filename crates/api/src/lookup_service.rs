@@ -1,7 +1,7 @@
 use geo::Contains;
-use geohash::{Coord, GeohashError, encode};
+use geohash::{encode, Coord, GeohashError};
 use rocksdb::{DBWithThreadMode, MultiThreaded};
-use types::GeohashValue;
+use util::GeohashValue;
 
 pub fn lookup_coordinates(
     db: &DBWithThreadMode<MultiThreaded>,

@@ -1,5 +1,8 @@
+mod rocksdb_helper;
+
 use geo::MultiPolygon;
 use geojson::JsonObject;
+pub use rocksdb_helper::rocksdb_options;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone)]

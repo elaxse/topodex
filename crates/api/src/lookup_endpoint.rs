@@ -53,7 +53,6 @@ async fn lookup_multiple(
             x: location.lng,
             y: location.lat,
         })
-        // .map(|coord| lookup_coordinates(&state.db, coord, state.max_geohash_level))
         .collect();
 
     let resolved_locations =

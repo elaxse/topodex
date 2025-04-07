@@ -5,8 +5,9 @@ use anyhow::{Ok, Result};
 use lookup_endpoint::AppState;
 use lookup_endpoint::{lookup_multiple, lookup_single};
 use ntex::web;
-use rocksdb::{DB, Options};
+use rocksdb::DB;
 use std::sync::Arc;
+use util::rocksdb_options;
 
 pub async fn run_api(
     db_name: &str,
@@ -15,8 +16,9 @@ pub async fn run_api(
     workers: usize,
 ) -> Result<()> {
     println!("Starting webserver on port {}", port);
-    let options = Options::default();
-    let db = Arc::new(DB::open_for_read_only(&options, db_name, false)?);
+
+    let rockdb_options = rocksdb_options();
+    let db = Arc::new(DB::open_for_read_only(&rockdb_options, db_name, false)?);
 
     web::HttpServer::new(move || {
         web::App::new()

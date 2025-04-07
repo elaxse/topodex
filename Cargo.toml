@@ -5,4 +5,5 @@ resolver = "2"
 [workspace.dependencies]
 geohash = "0.13.1"
 geo = "0.29.3"
+rocksdb = { version = "0.23.0", features = ["multi-threaded-cf"] }
 anyhow = { version = "1.0.97", features = ["backtrace"] }

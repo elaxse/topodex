@@ -8,7 +8,7 @@ use ntex;
 use process::{extract_topologies, save_geohash_index};
 use std::thread;
 use std::{fs::read_to_string, str::FromStr};
-use types::{GeohashIndex, TopodexConfig};
+use util::{GeohashIndex, TopodexConfig};
 
 fn default_thread_count() -> String {
     thread::available_parallelism()
