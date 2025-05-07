@@ -1,5 +1,5 @@
 use geo::Contains;
-use geohash::{encode, Coord, GeohashError};
+use geohash::{Coord, GeohashError, encode};
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use util::GeohashValue;
 

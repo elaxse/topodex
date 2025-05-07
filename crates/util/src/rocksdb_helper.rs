@@ -8,7 +8,8 @@ pub fn rocksdb_options() -> Options {
 
     let mut options = Options::default();
     options.set_block_based_table_factory(&table_options);
-    options.set_write_buffer_size(1024 * 1024 * 1024);
+    options.set_write_buffer_size(512 * 1024 * 1024);
     options.create_if_missing(true);
+    options.set_stats_persist_period_sec(10);
     options
 }

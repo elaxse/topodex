@@ -4,12 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bitcode = { version = "0.6.5", features = ["serde"] }
+bitcode = { workspace = true }
 geo = { workspace = true }
 geohash = { workspace = true }
 anyhow = { workspace = true }
-ntex = { version = "2.11.0", features = ["tokio"] }
+ntex = { workspace = true }
 rocksdb.workspace = true
 rusty-leveldb = { version = "3.0.2", features = ["tokio"] }
-serde = "1.0.218"
+serde = { workspace = true }
 util = { version = "0.1.0", path = "../util" }
+log.workspace = true

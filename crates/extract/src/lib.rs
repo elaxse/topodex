@@ -4,6 +4,7 @@ mod read_osm_data;
 use anyhow::Result;
 use geo::{coord, Coord, LineString, MultiPolygon, Polygon, Within};
 use geojson::{feature::Id, Feature, Geometry, Value};
+use log::info;
 use read_osm_data::read_osm_elements;
 use std::{collections::HashMap, time::Instant};
 use util::{RelationMember, RelationWithLocations, RelationWithMembers, TopodexConfig, Way};
@@ -11,7 +12,7 @@ use util::{RelationMember, RelationWithLocations, RelationWithMembers, TopodexCo
 pub fn extract(path: &str, extract_config: &TopodexConfig) -> Result<Vec<Feature>> {
     let (relations, ways, nodes) = read_osm_elements(path, extract_config)?;
     let start = Instant::now();
-    println!(
+    info!(
         "Countries combination: {} seconds",
         start.elapsed().as_secs()
     );

@@ -1,11 +1,14 @@
 use anyhow::{Context, Ok, Result};
 use api::run_api;
 use clap::{Parser, Subcommand};
+use env_logger;
 use extract::extract;
 use geo::Polygon;
 use geojson::Feature;
+use log::info;
 use ntex;
 use process::{extract_topologies, save_geohash_index};
+use rayon::ThreadPoolBuilder;
 use std::thread;
 use std::{fs::read_to_string, str::FromStr};
 use util::{GeohashIndex, TopodexConfig};
@@ -21,6 +24,9 @@ fn default_thread_count() -> String {
 struct Args {
     #[command(subcommand)]
     command: Commands,
+
+    #[arg(short, long, default_value_os_t = default_thread_count())]
+    threads: String,
 }
 
 #[derive(Subcommand)]
@@ -34,9 +40,6 @@ enum Commands {
 
         #[arg(short, long, default_value_t = 8090)]
         port: u16,
-
-        #[arg(short, long, default_value_os_t = default_thread_count())]
-        threads: String,
     },
     Extract {
         #[arg(short, long)]
@@ -68,7 +71,14 @@ enum Commands {
 
 #[ntex::main]
 async fn main() -> Result<()> {
+    env_logger::init();
     let cli = Args::parse();
+    let thread_count: usize = cli.threads.parse()?;
+
+    ThreadPoolBuilder::new()
+        .num_threads(thread_count)
+        .build_global()
+        .unwrap();
 
     match cli.command {
         Commands::Extract {
@@ -77,9 +87,10 @@ async fn main() -> Result<()> {
             config_path,
         } => {
             let config = topodex_config(&config_path)?;
-            println!("Read file {}", osm_pbf_file);
+
+            info!("Read file {}", osm_pbf_file);
             let geometries = extract(&osm_pbf_file, &config)?;
-            println!("Received {} geometries", geometries.len());
+            info!("Received {} geometries", geometries.len());
 
             let geojson_str = geometries
                 .iter()
@@ -105,7 +116,7 @@ async fn main() -> Result<()> {
                 .map(|feature_str| Feature::from_str(feature_str).unwrap())
                 .collect();
             let geohash_indexes = extract_topologies(geometries, max_geohash_level, &config)?;
-            println!("Geohash indexes count: {}", geohash_indexes.len());
+            info!("Geohash indexes count: {}", geohash_indexes.len());
 
             if let Some(output_path) = processed_features_output_path {
                 let geojson_str = geohash_to_geojson(&geohash_indexes);
@@ -118,9 +129,7 @@ async fn main() -> Result<()> {
             geohash_db,
             max_geohash_level,
             port,
-            threads,
         } => {
-            let thread_count: usize = threads.parse()?;
             run_api(&geohash_db, max_geohash_level, port, thread_count).await?;
         }
     }

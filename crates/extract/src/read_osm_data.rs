@@ -1,4 +1,5 @@
 use anyhow::Result;
+use log::info;
 use osmpbf::{Element, Relation};
 use serde_json::Value;
 use std::{
@@ -23,7 +24,7 @@ pub fn read_osm_elements(
         &extract_config.filters,
         &extract_config.extract_properties,
     )?;
-    println!("Relations extract: {} seconds", start.elapsed().as_secs());
+    info!("Relations extract: {} seconds", start.elapsed().as_secs());
 
     let start = Instant::now();
     let ways_set: HashSet<i64> = relations
@@ -31,11 +32,11 @@ pub fn read_osm_elements(
         .map(|relation| relation.members.iter().map(|member| member.to_i64()))
         .flatten()
         .collect();
-    println!("Ways set: {} seconds", start.elapsed().as_secs());
+    info!("Ways set: {} seconds", start.elapsed().as_secs());
 
     let start = Instant::now();
     let ways = read_ways(&path, &ways_set)?;
-    println!("Ways extract: {} seconds", start.elapsed().as_secs());
+    info!("Ways extract: {} seconds", start.elapsed().as_secs());
 
     let start = Instant::now();
     let nodes_set: HashSet<i64> = ways
@@ -43,11 +44,11 @@ pub fn read_osm_elements(
         .map(|(_, node_ids)| node_ids.clone())
         .flatten()
         .collect();
-    println!("Nodes set: {} seconds", start.elapsed().as_secs());
+    info!("Nodes set: {} seconds", start.elapsed().as_secs());
 
     let start = Instant::now();
     let nodes = read_nodes(&path, &nodes_set)?;
-    println!("Nodes extract: {} seconds", start.elapsed().as_secs());
+    info!("Nodes extract: {} seconds", start.elapsed().as_secs());
 
     Ok((relations, ways, nodes))
 }

@@ -1,9 +1,10 @@
 mod fill_polygon;
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use fill_polygon::fill_polygon;
 use geo::{MultiPolygon, Polygon};
 use geojson::{Feature, Value};
+use log::info;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rocksdb::DB;
 use std::collections::HashMap;
@@ -29,8 +30,7 @@ pub fn extract_topologies(
                         Some(MultiPolygon(vec![geo]))
                     }
                     _ => {
-                        println!("Unsupported geometry");
-                        None
+                        bail!("Unsupported geometry {:?}", &geometry.value);
                     }
                 };
 
@@ -83,8 +83,24 @@ pub fn save_geohash_index(geohashes: Vec<GeohashIndex>, path: &str) -> Result<()
 
     let rocksdb_options = rocksdb_options();
     let db = DB::open(&rocksdb_options, path)?;
-    for (hash, value) in map.iter() {
-        db.put(hash.as_bytes(), bitcode::serialize(value).unwrap())?;
+    let mut map_iterator = map.iter();
+    let mut counter = 0;
+    let mut batch = rocksdb::WriteBatch::default();
+
+    loop {
+        if let Some((hash, value)) = map_iterator.next() {
+            batch.put(hash.as_bytes(), bitcode::serialize(value).unwrap());
+            counter += 1;
+        } else {
+            break;
+        }
+
+        if counter > 10000 {
+            db.write_without_wal(batch)?;
+            info!("Wrote 10000 items to DB");
+            counter = 0;
+            batch = rocksdb::WriteBatch::default();
+        }
     }
 
     db.flush()?;

@@ -2,6 +2,7 @@ mod lookup_endpoint;
 mod lookup_service;
 
 use anyhow::{Ok, Result};
+use log::info;
 use lookup_endpoint::AppState;
 use lookup_endpoint::{lookup_multiple, lookup_single};
 use ntex::web;
@@ -15,7 +16,10 @@ pub async fn run_api(
     port: u16,
     workers: usize,
 ) -> Result<()> {
-    println!("Starting webserver on port {}", port);
+    info!(
+        "Starting webserver on port {} with {} workers",
+        port, workers
+    );
 
     let rockdb_options = rocksdb_options();
     let db = Arc::new(DB::open_for_read_only(&rockdb_options, db_name, false)?);

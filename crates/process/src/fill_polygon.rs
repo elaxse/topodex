@@ -1,6 +1,7 @@
 use anyhow::Result;
 use geo::{BooleanOps, Contains, Intersects, MultiPolygon};
 use geohash::decode_bbox;
+use log::info;
 use util::{GeohashIndex, ShouldCheck};
 
 pub fn fill_polygon(
@@ -56,7 +57,7 @@ pub fn fill_polygon(
         geohashes_to_check = next_geohashes_check;
     }
 
-    println!(
+    info!(
         "processed relation {:?} in {:.2?}",
         polygon_value,
         start.elapsed()
